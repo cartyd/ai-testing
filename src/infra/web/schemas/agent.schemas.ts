@@ -1,3 +1,5 @@
+import { HTTP_STATUS } from '../constants/controller.constants';
+
 // Route constants
 export const ROUTE_CONSTANTS = {
   PREFIX: '/api/v1/agents',
@@ -50,9 +52,31 @@ export const agentDataSchema = {
   required: ['id', 'name', 'prompt', 'createdAt', 'updatedAt'],
 } as const;
 
+// Error schema factory to align with health schemas
+function createErrorSchema() {
+  return {
+    type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
+    properties: {
+      error: {
+        type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
+        properties: {
+          message: { type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
+          code: { type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
+          timestamp: { 
+            type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING, 
+            format: ROUTE_CONSTANTS.DATE_FORMAT 
+          },
+        },
+        required: ['message', 'code', 'timestamp'],
+      },
+    },
+    required: ['error'],
+  };
+}
+
 // Common response wrappers
 export const responseWrappers = {
-  success: (dataSchema: any) => ({
+  success: <T = unknown>(dataSchema: T) => ({
     type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
     properties: {
       data: dataSchema,
@@ -60,21 +84,13 @@ export const responseWrappers = {
     },
     required: ['data'],
   }),
-  
-  error: (statusCode: number) => ({
-    [statusCode]: {
-      type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-      properties: {
-        error: {
-          type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-          properties: {
-            message: { type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
-            code: { type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
-          },
-        },
-      },
-    },
-  }),
+} as const;
+
+// Error response schemas using factory for consistency
+export const agentErrorSchemas = {
+  [HTTP_STATUS.NOT_FOUND]: createErrorSchema(),
+  [HTTP_STATUS.INTERNAL_SERVER_ERROR]: createErrorSchema(),
+  [HTTP_STATUS.BAD_REQUEST]: createErrorSchema(),
 } as const;
 
 // Specific schemas for each endpoint
@@ -85,10 +101,11 @@ export const agentSchemas = {
     summary: 'List all agents',
     description: 'Retrieve a list of all available Retell AI agents',
     response: {
-      200: responseWrappers.success({
+      [HTTP_STATUS.OK]: responseWrappers.success({
         type: ROUTE_CONSTANTS.RESPONSE_TYPES.ARRAY,
         items: agentDataSchema,
       }),
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: agentErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
     },
   },
 
@@ -99,8 +116,10 @@ export const agentSchemas = {
     description: 'Retrieve a specific agent by its ID',
     params: commonParams.agentId,
     response: {
-      200: responseWrappers.success(agentDataSchema),
-      ...responseWrappers.error(404),
+      [HTTP_STATUS.OK]: responseWrappers.success(agentDataSchema),
+      [HTTP_STATUS.NOT_FOUND]: agentErrorSchemas[HTTP_STATUS.NOT_FOUND],
+      [HTTP_STATUS.BAD_REQUEST]: agentErrorSchemas[HTTP_STATUS.BAD_REQUEST],
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: agentErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
     },
   },
 
@@ -111,7 +130,7 @@ export const agentSchemas = {
     description: 'Retrieve the system prompt for a specific agent',
     params: commonParams.agentId,
     response: {
-      200: responseWrappers.success({
+      [HTTP_STATUS.OK]: responseWrappers.success({
         type: ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
         properties: {
           agentId: { type: ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
@@ -124,7 +143,9 @@ export const agentSchemas = {
         },
         required: ['agentId', 'prompt', 'updatedAt'],
       }),
-      ...responseWrappers.error(404),
+      [HTTP_STATUS.NOT_FOUND]: agentErrorSchemas[HTTP_STATUS.NOT_FOUND],
+      [HTTP_STATUS.BAD_REQUEST]: agentErrorSchemas[HTTP_STATUS.BAD_REQUEST],
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: agentErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
     },
   },
 } as const;

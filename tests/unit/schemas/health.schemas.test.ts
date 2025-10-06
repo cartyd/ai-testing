@@ -4,6 +4,7 @@ import {
   healthErrorSchemas,
   healthSchemas,
 } from '../../../src/infra/web/schemas/health.schemas';
+import { HEALTH_CONFIG } from '../../../src/infra/web/constants/controller.constants';
 
 describe('Health Schema Tests', () => {
   describe('HEALTH_ROUTE_CONSTANTS', () => {
@@ -45,10 +46,14 @@ describe('Health Schema Tests', () => {
         { status: 'UNHEALTHY', expected: 'unhealthy' },
         { status: 'UP', expected: 'up' },
         { status: 'DOWN', expected: 'down' },
+        { status: 'READY', expected: 'ready' },
+        { status: 'NOT_READY', expected: 'not_ready' },
+        { status: 'ALIVE', expected: 'alive' },
+        { status: 'NOT_ALIVE', expected: 'not_alive' },
       ];
 
       test.each(validStatusValueTests)('should have correct status value for $status', ({ status, expected }) => {
-        expect(HEALTH_ROUTE_CONSTANTS.STATUS_VALUES[status as keyof typeof HEALTH_ROUTE_CONSTANTS.STATUS_VALUES]).toBe(expected);
+        expect(HEALTH_CONFIG.STATUS_VALUES[status as keyof typeof HEALTH_CONFIG.STATUS_VALUES]).toBe(expected);
       });
 
       it('should have correct tag and date format', () => {
@@ -114,13 +119,22 @@ describe('Health Schema Tests', () => {
         expect(servicesProperty.additionalProperties.enum).toEqual(['up', 'down']);
       });
 
-      it('should have correct simpleStatus schema structure', () => {
-        const schema = healthResponseSchemas.simpleStatus;
+      it('should have correct readiness schema structure', () => {
+        const schema = healthResponseSchemas.readiness;
         
         expect(schema.type).toBe('object');
         expect(schema.required).toEqual(['status']);
         expect(schema.properties.status.type).toBe('string');
-        expect(schema.properties.status.enum).toEqual(['up', 'down']);
+        expect(schema.properties.status.enum).toEqual(['ready', 'not_ready']);
+      });
+
+      it('should have correct liveness schema structure', () => {
+        const schema = healthResponseSchemas.liveness;
+        
+        expect(schema.type).toBe('object');
+        expect(schema.required).toEqual(['status']);
+        expect(schema.properties.status.type).toBe('string');
+        expect(schema.properties.status.enum).toEqual(['alive', 'not_alive']);
       });
     });
 
@@ -134,11 +148,20 @@ describe('Health Schema Tests', () => {
         });
       });
 
-      it('should ensure all required fields exist in properties for simpleStatus', () => {
-        const requiredFields = healthResponseSchemas.simpleStatus.required;
-        const availableProperties = Object.keys(healthResponseSchemas.simpleStatus.properties);
+      it('should ensure all required fields exist in properties for readiness', () => {
+        const requiredFields = healthResponseSchemas.readiness.required;
+        const availableProperties = Object.keys(healthResponseSchemas.readiness.properties);
         
-        requiredFields.forEach(field => {
+        requiredFields.forEach((field: string) => {
+          expect(availableProperties).toContain(field);
+        });
+      });
+
+      it('should ensure all required fields exist in properties for liveness', () => {
+        const requiredFields = healthResponseSchemas.liveness.required;
+        const availableProperties = Object.keys(healthResponseSchemas.liveness.properties);
+        
+        requiredFields.forEach((field: string) => {
           expect(availableProperties).toContain(field);
         });
       });
@@ -216,7 +239,7 @@ describe('Health Schema Tests', () => {
           expectedSummary: 'Readiness check',
           expectedDescription: 'Check if the service is ready to accept requests',
           responseKeys: ['200', '500', '503'],
-          expectedResponseSchema: healthResponseSchemas.simpleStatus,
+          expectedResponseSchema: healthResponseSchemas.readiness,
         },
         {
           name: 'liveness',
@@ -224,7 +247,7 @@ describe('Health Schema Tests', () => {
           expectedSummary: 'Liveness check',
           expectedDescription: 'Check if the service is alive',
           responseKeys: ['200', '500'],
-          expectedResponseSchema: healthResponseSchemas.simpleStatus,
+          expectedResponseSchema: healthResponseSchemas.liveness,
         },
       ];
 
@@ -304,19 +327,24 @@ describe('Health Schema Tests', () => {
         name: 'should use HEALTH_ROUTE_CONSTANTS for response type definitions',
         testFn: () => {
           expect(healthResponseSchemas.fullHealth.type).toBe(HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT);
-          expect(healthResponseSchemas.simpleStatus.type).toBe(HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT);
+          expect(healthResponseSchemas.readiness.type).toBe(HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT);
+          expect(healthResponseSchemas.liveness.type).toBe(HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT);
         },
       },
       {
         name: 'should use consistent status values from constants',
         testFn: () => {
           const fullHealthStatusEnum = healthResponseSchemas.fullHealth.properties.status.enum;
-          expect(fullHealthStatusEnum).toContain(HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.HEALTHY);
-          expect(fullHealthStatusEnum).toContain(HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.UNHEALTHY);
+          expect(fullHealthStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.HEALTHY);
+          expect(fullHealthStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.UNHEALTHY);
           
-          const simpleStatusEnum = healthResponseSchemas.simpleStatus.properties.status.enum;
-          expect(simpleStatusEnum).toContain(HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.UP);
-          expect(simpleStatusEnum).toContain(HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.DOWN);
+          const readinessStatusEnum = healthResponseSchemas.readiness.properties.status.enum;
+          expect(readinessStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.READY);
+          expect(readinessStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.NOT_READY);
+          
+          const livenessStatusEnum = healthResponseSchemas.liveness.properties.status.enum;
+          expect(livenessStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.ALIVE);
+          expect(livenessStatusEnum).toContain(HEALTH_CONFIG.STATUS_VALUES.NOT_ALIVE);
         },
       },
       {
@@ -350,8 +378,11 @@ describe('Health Schema Tests', () => {
           expect(fullHealthProperties).toContain(prop);
         });
         
-        const simpleStatusProperties = Object.keys(healthResponseSchemas.simpleStatus.properties);
-        expect(simpleStatusProperties).toContain('status');
+        const readinessProperties = Object.keys(healthResponseSchemas.readiness.properties);
+        expect(readinessProperties).toContain('status');
+        
+        const livenessProperties = Object.keys(healthResponseSchemas.liveness.properties);
+        expect(livenessProperties).toContain('status');
       });
 
       it('should ensure error schemas have proper error structure', () => {
@@ -369,17 +400,31 @@ describe('Health Schema Tests', () => {
       it('should ensure enum values are consistent with constants', () => {
         const fullHealthStatusEnum = healthResponseSchemas.fullHealth.properties.status.enum;
         const expectedHealthStatuses = [
-          HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.HEALTHY,
-          HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.UNHEALTHY,
+          HEALTH_CONFIG.STATUS_VALUES.HEALTHY,
+          HEALTH_CONFIG.STATUS_VALUES.UNHEALTHY,
         ];
         expect(fullHealthStatusEnum).toEqual(expectedHealthStatuses);
         
         const servicesEnum = healthResponseSchemas.fullHealth.properties.services.additionalProperties.enum;
         const expectedServiceStatuses = [
-          HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.UP,
-          HEALTH_ROUTE_CONSTANTS.STATUS_VALUES.DOWN,
+          HEALTH_CONFIG.STATUS_VALUES.UP,
+          HEALTH_CONFIG.STATUS_VALUES.DOWN,
         ];
         expect(servicesEnum).toEqual(expectedServiceStatuses);
+        
+        const readinessEnum = healthResponseSchemas.readiness.properties.status.enum;
+        const expectedReadinessStatuses = [
+          HEALTH_CONFIG.STATUS_VALUES.READY,
+          HEALTH_CONFIG.STATUS_VALUES.NOT_READY,
+        ];
+        expect(readinessEnum).toEqual(expectedReadinessStatuses);
+        
+        const livenessEnum = healthResponseSchemas.liveness.properties.status.enum;
+        const expectedLivenessStatuses = [
+          HEALTH_CONFIG.STATUS_VALUES.ALIVE,
+          HEALTH_CONFIG.STATUS_VALUES.NOT_ALIVE,
+        ];
+        expect(livenessEnum).toEqual(expectedLivenessStatuses);
       });
     });
   });

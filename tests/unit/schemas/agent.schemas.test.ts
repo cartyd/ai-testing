@@ -3,8 +3,10 @@ import {
   commonParams,
   agentDataSchema,
   responseWrappers,
+  agentErrorSchemas,
   agentSchemas,
 } from '../../../src/infra/web/schemas/agent.schemas';
+import { HTTP_STATUS } from '../../../src/infra/web/constants/controller.constants';
 
 describe('Agent Schema Tests', () => {
   describe('ROUTE_CONSTANTS', () => {
@@ -166,23 +168,23 @@ describe('Agent Schema Tests', () => {
       });
 
       const validErrorStatusCodes = [
-        { code: 400, description: 'Bad Request' },
-        { code: 401, description: 'Unauthorized' },
-        { code: 403, description: 'Forbidden' },
-        { code: 404, description: 'Not Found' },
-        { code: 500, description: 'Internal Server Error' },
+        { code: HTTP_STATUS.BAD_REQUEST, description: 'Bad Request' },
+        { code: HTTP_STATUS.NOT_FOUND, description: 'Not Found' },
+        { code: HTTP_STATUS.INTERNAL_SERVER_ERROR, description: 'Internal Server Error' },
       ];
 
       test.each(validErrorStatusCodes)(
         'should create valid error wrapper for $code ($description)',
         ({ code }) => {
-          const errorWrapper = responseWrappers.error(code);
+          const errorWrapper = agentErrorSchemas[code as keyof typeof agentErrorSchemas];
           
-          expect(errorWrapper).toHaveProperty(code.toString());
-          expect(errorWrapper[code].type).toBe('object');
-          expect(errorWrapper[code].properties.error.type).toBe('object');
-          expect(errorWrapper[code].properties.error.properties.message.type).toBe('string');
-          expect(errorWrapper[code].properties.error.properties.code.type).toBe('string');
+          expect(errorWrapper).toBeDefined();
+          expect(errorWrapper.type).toBe('object');
+          expect(errorWrapper.properties.error.type).toBe('object');
+          expect(errorWrapper.properties.error.properties.message.type).toBe('string');
+          expect(errorWrapper.properties.error.properties.code.type).toBe('string');
+          expect(errorWrapper.properties.error.properties.timestamp.type).toBe('string');
+          expect(errorWrapper.properties.error.properties.timestamp.format).toBe('date-time');
         }
       );
     });
@@ -215,20 +217,18 @@ describe('Agent Schema Tests', () => {
         expect(wrapper.required).toContain('data');
       });
 
-      const edgeStatusCodes = [
-        { code: 100, description: 'Continue (informational)' },
-        { code: 200, description: 'Success (used as error)' },
-        { code: 999, description: 'Non-standard code' },
-      ];
-
-      test.each(edgeStatusCodes)(
-        'should handle edge case status code $code ($description)', 
-        ({ code }) => {
-          const errorWrapper = responseWrappers.error(code);
-          expect(errorWrapper).toHaveProperty(code.toString());
-          expect(errorWrapper[code].type).toBe('object');
-        }
-      );
+      it('should have consistent error schema structure across all status codes', () => {
+        const errorSchemas = Object.values(agentErrorSchemas);
+        
+        errorSchemas.forEach(errorSchema => {
+          expect(errorSchema.type).toBe('object');
+          expect(errorSchema.properties.error.type).toBe('object');
+          expect(errorSchema.properties.error.properties.message.type).toBe('string');
+          expect(errorSchema.properties.error.properties.code.type).toBe('string');
+          expect(errorSchema.properties.error.properties.timestamp.type).toBe('string');
+          expect(errorSchema.properties.error.properties.timestamp.format).toBe('date-time');
+        });
+      });
     });
   });
 
@@ -241,7 +241,7 @@ describe('Agent Schema Tests', () => {
           expectedSummary: 'List all agents',
           expectedDescription: 'Retrieve a list of all available Retell AI agents',
           hasParams: false,
-          responseKeys: ['200'],
+          responseKeys: [HTTP_STATUS.OK.toString(), HTTP_STATUS.INTERNAL_SERVER_ERROR.toString()],
           dataType: 'array',
         },
         {
@@ -250,7 +250,7 @@ describe('Agent Schema Tests', () => {
           expectedSummary: 'Get agent by ID',
           expectedDescription: 'Retrieve a specific agent by its ID',
           hasParams: true,
-          responseKeys: ['200', '404'],
+          responseKeys: [HTTP_STATUS.OK.toString(), HTTP_STATUS.NOT_FOUND.toString(), HTTP_STATUS.BAD_REQUEST.toString(), HTTP_STATUS.INTERNAL_SERVER_ERROR.toString()],
           dataType: 'object',
         },
         {
@@ -259,7 +259,7 @@ describe('Agent Schema Tests', () => {
           expectedSummary: 'Get agent prompt',
           expectedDescription: 'Retrieve the system prompt for a specific agent',
           hasParams: true,
-          responseKeys: ['200', '404'],
+          responseKeys: [HTTP_STATUS.OK.toString(), HTTP_STATUS.NOT_FOUND.toString(), HTTP_STATUS.BAD_REQUEST.toString(), HTTP_STATUS.INTERNAL_SERVER_ERROR.toString()],
           dataType: 'object',
         },
       ];
@@ -301,12 +301,12 @@ describe('Agent Schema Tests', () => {
       test.each(responseStructureTests)(
         '$name',
         ({ schema, expectedDataType, expectedItems, expectedData }) => {
-          const responseSchema = schema.response[200];
+          const responseSchema = schema.response[HTTP_STATUS.OK];
           const dataSchema = responseSchema.properties.data;
           
           expect(dataSchema.type).toBe(expectedDataType);
           
-          if (expectedItems) {
+          if (expectedItems && 'items' in dataSchema) {
             expect(dataSchema.items).toEqual(expectedItems);
           }
           
@@ -317,7 +317,7 @@ describe('Agent Schema Tests', () => {
       );
 
       it('should have specific prompt response structure', () => {
-        const responseSchema = agentSchemas.getAgentPrompt.response[200];
+        const responseSchema = agentSchemas.getAgentPrompt.response[HTTP_STATUS.OK];
         const dataSchema = responseSchema.properties.data;
         
         const expectedProperties = [
@@ -328,9 +328,9 @@ describe('Agent Schema Tests', () => {
         ];
         
         expectedProperties.forEach(({ name, type, hasFormat, format }) => {
-          expect(dataSchema.properties[name].type).toBe(type);
+          expect(dataSchema.properties[name as keyof typeof dataSchema.properties].type).toBe(type);
           if (hasFormat) {
-            expect(dataSchema.properties[name].format).toBe(format);
+            expect(dataSchema.properties[name as keyof typeof dataSchema.properties]).toHaveProperty('format', format);
           }
         });
         
@@ -378,20 +378,25 @@ describe('Agent Schema Tests', () => {
 
     describe('Error response consistency', () => {
       it('should have consistent error response structure', () => {
-        // Test that schemas with error responses include 404 property
+        // Test that schemas with error responses include expected status codes
         const getAgentResponse = agentSchemas.getAgent.response;
         const getAgentPromptResponse = agentSchemas.getAgentPrompt.response;
         
-        expect(getAgentResponse).toHaveProperty('404');
-        expect(getAgentPromptResponse).toHaveProperty('404');
+        expect(getAgentResponse).toHaveProperty(HTTP_STATUS.NOT_FOUND.toString());
+        expect(getAgentPromptResponse).toHaveProperty(HTTP_STATUS.NOT_FOUND.toString());
+        expect(getAgentResponse).toHaveProperty(HTTP_STATUS.BAD_REQUEST.toString());
+        expect(getAgentPromptResponse).toHaveProperty(HTTP_STATUS.BAD_REQUEST.toString());
+        expect(getAgentResponse).toHaveProperty(HTTP_STATUS.INTERNAL_SERVER_ERROR.toString());
+        expect(getAgentPromptResponse).toHaveProperty(HTTP_STATUS.INTERNAL_SERVER_ERROR.toString());
         
-        // Test the error response structure by checking the error wrapper function directly
-        const errorWrapper = responseWrappers.error(404);
-        expect(errorWrapper).toHaveProperty('404');
-        expect(errorWrapper[404].type).toBe('object');
-        expect(errorWrapper[404].properties.error).toBeDefined();
-        expect(errorWrapper[404].properties.error.properties.message.type).toBe('string');
-        expect(errorWrapper[404].properties.error.properties.code.type).toBe('string');
+        // Test the error response structure using agentErrorSchemas
+        const notFoundError = agentErrorSchemas[HTTP_STATUS.NOT_FOUND];
+        expect(notFoundError.type).toBe('object');
+        expect(notFoundError.properties.error).toBeDefined();
+        expect(notFoundError.properties.error.properties.message.type).toBe('string');
+        expect(notFoundError.properties.error.properties.code.type).toBe('string');
+        expect(notFoundError.properties.error.properties.timestamp.type).toBe('string');
+        expect(notFoundError.properties.error.properties.timestamp.format).toBe('date-time');
       });
     });
   });
@@ -444,34 +449,17 @@ describe('Agent Schema Tests', () => {
   });
 
   describe('Invalid cases', () => {
-    describe('Response wrapper error handling', () => {
-      const invalidStatusCodeTests = [
-        {
-          name: 'should handle negative status codes',
-          statusCode: -404,
-          expectedKey: '-404',
-        },
-        {
-          name: 'should handle zero status code', 
-          statusCode: 0,
-          expectedKey: '0',
-        },
-        {
-          name: 'should handle very large status codes',
-          statusCode: 9999,
-          expectedKey: '9999',
-        },
-      ];
-
-      test.each(invalidStatusCodeTests)(
-        '$name ($statusCode)',
-        ({ statusCode, expectedKey }) => {
-          // Even "invalid" status codes should work - the function should be robust
-          const errorWrapper = responseWrappers.error(statusCode);
-          expect(errorWrapper).toHaveProperty(expectedKey);
-          expect(errorWrapper[statusCode].type).toBe('object');
-        }
-      );
+    describe('Error schema validation', () => {
+      it('should ensure all error schemas have consistent structure', () => {
+        const errorSchemas = Object.values(agentErrorSchemas);
+        
+        errorSchemas.forEach(errorSchema => {
+          expect(errorSchema.type).toBe('object');
+          expect(errorSchema.required).toContain('error');
+          expect(errorSchema.properties.error.type).toBe('object');
+          expect(errorSchema.properties.error.required).toEqual(['message', 'code', 'timestamp']);
+        });
+      });
     });
 
     describe('Schema structure validation', () => {
