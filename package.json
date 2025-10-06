@@ -1,7 +1,7 @@
 {
-  "name": "ai-testing-monorepo",
+  "name": "voice-testing-monorepo",
   "version": "1.0.0",
-  "description": "Monorepo for AI Testing project with React frontend and Node.js backend",
+  "description": "Monorepo for Voice Testing project with React frontend and Node.js backend",
   "private": true,
   "workspaces": [
     "frontend",
@@ -30,6 +30,7 @@
     "react", 
     "nodejs", 
     "typescript", 
+    "voice-testing", 
     "retell-ai", 
     "fastify"
   ],
