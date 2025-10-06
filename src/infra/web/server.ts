@@ -5,9 +5,9 @@ import fastifySwaggerUI from '@fastify/swagger-ui';
 
 import { config, isDevelopment } from '../../config';
 import { registerErrorHandler } from '../../common/middleware/error-handler';
-import { RetellApiClient, RetellAgentRepository } from '../http';
-import { AgentController } from './controllers/agent.controller';
-import { HealthController } from './controllers/health.controller';
+import { RetellApiClient, createRetellAgentRepository } from '../http';
+import { createAgentHandlers } from './controllers/agent.controller';
+import { createHealthHandlers } from './controllers/health.controller';
 import { agentRoutes } from './routes/agent.routes';
 import { healthRoutes } from './routes/health.routes';
 
@@ -78,15 +78,15 @@ export async function createApp(): Promise<FastifyInstance> {
 
   // Initialize dependencies
   const retellClient = new RetellApiClient();
-  const agentRepository = new RetellAgentRepository(retellClient);
+  const agentRepository = createRetellAgentRepository(retellClient);
   
-  // Initialize controllers
-  const agentController = new AgentController(agentRepository);
-  const healthController = new HealthController();
+  // Create functional handlers
+  const agentHandlers = createAgentHandlers(agentRepository);
+  const healthHandlers = createHealthHandlers();
 
   // Register routes
-  await agentRoutes(fastify, agentController);
-  await healthRoutes(fastify, healthController);
+  await agentRoutes(fastify, agentHandlers);
+  await healthRoutes(fastify, healthHandlers);
 
   // Root route
   fastify.get('/', async (request, reply) => {

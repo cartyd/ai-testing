@@ -1,3 +1,8 @@
 export { createApp, startServer } from './server';
-export { AgentController } from './controllers/agent.controller';
-export { HealthController } from './controllers/health.controller';
+export { createAgentHandlers, type AgentHandlers } from './controllers/agent.controller';
+export { 
+  createHealthHandlers, 
+  type HealthHandlers,
+  type TimeProvider,
+  type ServiceChecker
+} from './controllers/health.controller';
