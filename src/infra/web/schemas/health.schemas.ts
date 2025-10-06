@@ -1,135 +1,106 @@
 import { HTTP_STATUS, HEALTH_CONFIG } from '../constants/controller.constants';
 
-// Health route constants (reusing existing constants for consistency)
-export const HEALTH_ROUTE_CONSTANTS = {
-  PATHS: {
-    HEALTH: '/health',
-    READINESS: '/readiness', 
-    LIVENESS: '/liveness',
-  },
-  TAG: 'Health',
-  RESPONSE_TYPES: {
-    OBJECT: 'object',
-    STRING: 'string',
-    NUMBER: 'number',
-    ARRAY: 'array', // Added for completeness
-  },
-  DATE_FORMAT: 'date-time',
+// Simple constants for health routes
+export const HEALTH_PATHS = {
+  HEALTH: '/health',
+  READINESS: '/readiness',
+  LIVENESS: '/liveness',
 } as const;
 
-// Error schema factory to eliminate duplication
-function createErrorSchema() {
-  return {
-    type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-    properties: {
-      error: {
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-        properties: {
-          message: { type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
-          code: { type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING },
-          timestamp: { 
-            type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING, 
-            format: HEALTH_ROUTE_CONSTANTS.DATE_FORMAT 
-          },
-        },
-        required: ['message', 'code', 'timestamp'],
+// Error response schema
+const errorResponse = {
+  type: 'object',
+  properties: {
+    error: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        code: { type: 'string' },
+        timestamp: { type: 'string', format: 'date-time' },
       },
+      required: ['message', 'code', 'timestamp'],
     },
-    required: ['error'],
-  };
-}
-
-// Common response schemas
-export const healthResponseSchemas = {
-  // Detailed health response with services
-  fullHealth: {
-    type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-    properties: {
-      status: { 
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING, 
-        enum: [HEALTH_CONFIG.STATUS_VALUES.HEALTHY, HEALTH_CONFIG.STATUS_VALUES.UNHEALTHY] 
-      },
-      timestamp: { 
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING, 
-        format: HEALTH_ROUTE_CONSTANTS.DATE_FORMAT 
-      },
-      uptime: { type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.NUMBER },
-      services: {
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-        additionalProperties: { 
-          type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING, 
-          enum: [HEALTH_CONFIG.STATUS_VALUES.UP, HEALTH_CONFIG.STATUS_VALUES.DOWN] 
-        },
-      },
-    },
-    required: ['status', 'timestamp', 'uptime', 'services'],
   },
-
-  // Readiness response - matches controller return value
-  readiness: {
-    type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-    properties: {
-      status: { 
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING,
-        enum: [HEALTH_CONFIG.STATUS_VALUES.READY, HEALTH_CONFIG.STATUS_VALUES.NOT_READY]
-      },
-    },
-    required: ['status'],
-  },
-
-  // Liveness response - matches controller return value
-  liveness: {
-    type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.OBJECT,
-    properties: {
-      status: { 
-        type: HEALTH_ROUTE_CONSTANTS.RESPONSE_TYPES.STRING,
-        enum: [HEALTH_CONFIG.STATUS_VALUES.ALIVE, HEALTH_CONFIG.STATUS_VALUES.NOT_ALIVE]
-      },
-    },
-    required: ['status'],
-  },
+  required: ['error'],
 } as const;
 
-// Error response schemas using factory to eliminate duplication
-export const healthErrorSchemas = {
-  [HTTP_STATUS.INTERNAL_SERVER_ERROR]: createErrorSchema(),
-  [HTTP_STATUS.SERVICE_UNAVAILABLE]: createErrorSchema(),
+// Response schemas
+const fullHealthResponse = {
+  type: 'object',
+  properties: {
+    status: { 
+      type: 'string', 
+      enum: [HEALTH_CONFIG.STATUS_VALUES.HEALTHY, HEALTH_CONFIG.STATUS_VALUES.UNHEALTHY] 
+    },
+    timestamp: { type: 'string', format: 'date-time' },
+    uptime: { type: 'number' },
+    services: {
+      type: 'object',
+      additionalProperties: { 
+        type: 'string', 
+        enum: [HEALTH_CONFIG.STATUS_VALUES.UP, HEALTH_CONFIG.STATUS_VALUES.DOWN] 
+      },
+    },
+  },
+  required: ['status', 'timestamp', 'uptime', 'services'],
 } as const;
 
-// Complete schemas for each health endpoint
+const readinessResponse = {
+  type: 'object',
+  properties: {
+    status: { 
+      type: 'string',
+      enum: [HEALTH_CONFIG.STATUS_VALUES.READY, HEALTH_CONFIG.STATUS_VALUES.NOT_READY]
+    },
+  },
+  required: ['status'],
+} as const;
+
+const livenessResponse = {
+  type: 'object',
+  properties: {
+    status: { 
+      type: 'string',
+      enum: [HEALTH_CONFIG.STATUS_VALUES.ALIVE, HEALTH_CONFIG.STATUS_VALUES.NOT_ALIVE]
+    },
+  },
+  required: ['status'],
+} as const;
+
+// API endpoint schemas
 export const healthSchemas = {
-  // GET /health - Detailed health check
+  // GET /health
   health: {
-    tags: [HEALTH_ROUTE_CONSTANTS.TAG],
+    tags: ['Health'],
     summary: 'Health check',
     description: 'Check the overall health of the service',
     response: {
-      [HTTP_STATUS.OK]: healthResponseSchemas.fullHealth,
-      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: healthErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
-      [HTTP_STATUS.SERVICE_UNAVAILABLE]: healthErrorSchemas[HTTP_STATUS.SERVICE_UNAVAILABLE],
+      [HTTP_STATUS.OK]: fullHealthResponse,
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: errorResponse,
+      [HTTP_STATUS.SERVICE_UNAVAILABLE]: errorResponse,
     },
   },
 
-  // GET /readiness - Service readiness check
+  // GET /readiness
   readiness: {
-    tags: [HEALTH_ROUTE_CONSTANTS.TAG],
-    summary: 'Readiness check', 
+    tags: ['Health'],
+    summary: 'Readiness check',
     description: 'Check if the service is ready to accept requests',
     response: {
-      [HTTP_STATUS.OK]: healthResponseSchemas.readiness,
-      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: healthErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
-      [HTTP_STATUS.SERVICE_UNAVAILABLE]: healthErrorSchemas[HTTP_STATUS.SERVICE_UNAVAILABLE],
+      [HTTP_STATUS.OK]: readinessResponse,
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: errorResponse,
+      [HTTP_STATUS.SERVICE_UNAVAILABLE]: errorResponse,
     },
   },
 
-  // GET /liveness - Service liveness check
+  // GET /liveness
   liveness: {
-    tags: [HEALTH_ROUTE_CONSTANTS.TAG],
+    tags: ['Health'],
     summary: 'Liveness check',
     description: 'Check if the service is alive',
     response: {
-      [HTTP_STATUS.OK]: healthResponseSchemas.liveness,
-      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: healthErrorSchemas[HTTP_STATUS.INTERNAL_SERVER_ERROR],
+      [HTTP_STATUS.OK]: livenessResponse,
+      [HTTP_STATUS.INTERNAL_SERVER_ERROR]: errorResponse,
     },
   },
 } as const;

@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { AgentHandlers } from '../controllers/agent.controller';
-import { ROUTE_CONSTANTS, agentSchemas } from '../schemas/agent.schemas';
+import { AGENT_ROUTE_PREFIX, agentSchemas } from '../schemas/agent.schemas';
 
 export async function agentRoutes(
   fastify: FastifyInstance,
   agentHandlers: AgentHandlers
 ): Promise<void> {
-  const prefix = ROUTE_CONSTANTS.PREFIX;
+  const prefix = AGENT_ROUTE_PREFIX;
 
   // GET /api/v1/agents
   fastify.get(prefix, {
