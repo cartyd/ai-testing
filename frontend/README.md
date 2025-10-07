@@ -1,46 +1,112 @@
-# Getting Started with Create React App
+# Voice Testing Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React TypeScript application for managing and viewing voice agents.
+
+## Features
+
+- **Agent List**: Browse all available voice agents in a responsive grid layout
+- **Agent Details**: View detailed information about individual agents
+- **Agent Prompts**: View and copy system prompts for each agent
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
+- **Error Handling**: Graceful error states and retry functionality
+- **Loading States**: Clean loading indicators for better UX
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- Backend API running on `http://localhost:3000`
+
+### Installation
+
+```bash
+# Install dependencies (from root directory)
+npm install
+
+# Start development server
+npm run dev:frontend
+```
+
+The app will be available at `http://localhost:3001`
+
+### Environment Variables
+
+Create a `.env` file in the frontend directory:
+
+```bash
+REACT_APP_API_URL=http://localhost:3000
+BROWSER=none
+```
+
+## API Integration
+
+The frontend communicates with the backend API endpoints:
+
+- `GET /api/v1/agents` - Lists all agents
+- `GET /api/v1/agents/:id` - Gets agent details
+- `GET /api/v1/agents/:id/prompt` - Gets agent prompt
+
+## Project Structure
+
+```
+src/
+├── components/           # React components
+│   ├── AgentList.tsx    # Agent list grid view
+│   ├── AgentDetail.tsx  # Agent detail page
+│   ├── AgentList.css    # Styles for agent list
+│   └── AgentDetail.css  # Styles for agent detail
+├── services/            # API service layer
+│   └── api.ts          # HTTP client and API functions
+├── hooks/              # Custom React hooks
+│   └── useApi.ts       # API state management hooks
+└── types/              # TypeScript type definitions
+```
+
+## Usage
+
+### Viewing Agents
+
+1. Navigate to the home page to see all agents
+2. Click on any agent card to view details
+3. Use the "Details" and "Prompt" tabs to see different information
+4. Click "Copy Prompt" to copy the system prompt to clipboard
+5. Use "← Back to Agents" to return to the list
+
+### Error Handling
+
+- Network errors show retry buttons
+- Invalid agent IDs redirect to the home page
+- Loading states provide user feedback during API calls
 
 ## Available Scripts
 
-In the project directory, you can run:
+### `npm start` or `npm run dev`
 
-### `npm start`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Runs the app in development mode at [http://localhost:3001](http://localhost:3001)
 
 ### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Builds the app for production to the `build` folder.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### `npm test`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Launches the test runner in interactive watch mode.
 
-### `npm run eject`
+## Shared Types
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+The frontend uses shared TypeScript types from the `shared` package:
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- `Agent` - Agent data structure
+- `AgentPrompt` - Agent prompt structure  
+- `ApiResponse<T>` - API response wrapper
+- `HealthStatus` - Health check response
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## Development
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+To work on the frontend:
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+1. Ensure the backend is running on port 3000
+2. Start the frontend dev server: `npm run dev`
+3. Make changes to components, styles, or services
+4. The app will hot-reload automatically

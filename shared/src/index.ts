@@ -44,6 +44,8 @@ export interface Agent {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  version?: number;
+  versionTitle?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +54,7 @@ export interface AgentPrompt {
   agentId: string;
   prompt: string;
   version?: number;
+  versionTitle?: string;
   updatedAt: string;
 }
 
