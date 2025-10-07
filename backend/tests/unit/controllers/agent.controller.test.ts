@@ -46,6 +46,7 @@ const mockAgentRepository: jest.Mocked<AgentRepository> = {
   listAgents: jest.fn(),
   getAgent: jest.fn(),
   getAgentPrompt: jest.fn(),
+  getAgentVersions: jest.fn(),
 };
 
 // Mock Fastify request

@@ -12,7 +12,7 @@ describe('Server Integration Tests', () => {
     process.env.HOST = 'localhost';
     process.env.LOG_LEVEL = 'silent';
     
-    app = await createApp();
+    app = await createApp({ monitoring: { enhancedHealth: false } });
   });
 
   afterAll(async () => {

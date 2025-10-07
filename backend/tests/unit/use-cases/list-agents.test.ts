@@ -23,6 +23,7 @@ const mockAgentRepository: jest.Mocked<AgentRepository> = {
   listAgents: jest.fn(),
   getAgent: jest.fn(), // Not used in listAgents tests but required by interface
   getAgentPrompt: jest.fn(), // Not used in listAgents tests but required by interface
+  getAgentVersions: jest.fn(),
 };
 
 // Test data factory

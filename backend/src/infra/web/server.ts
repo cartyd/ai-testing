@@ -1,7 +1,9 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCors from '@fastify/cors';
+import fastifyHelmet from '@fastify/helmet';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUI from '@fastify/swagger-ui';
+import fastifyRateLimit from '@fastify/rate-limit';
 
 import { config, isDevelopment } from '../../config';
 import { registerErrorHandler } from '../../common/middleware/error-handler';
@@ -10,8 +12,69 @@ import { createAgentHandlers } from './controllers/agent.controller';
 import { createHealthHandlers } from './controllers/health.controller';
 import { agentRoutes } from './routes/agent.routes';
 import { healthRoutes } from './routes/health.routes';
+import { ROOT_RESPONSE } from './constants/api.constants';
+import { 
+  getHelmetConfig, 
+  getCorsConfig, 
+  getSwaggerConfig, 
+  getSwaggerUIConfig,
+  getServerUrl,
+  getRateLimitConfig,
+} from './config/plugins.config';
+import type { AppDependencies, DependencyFactory } from './types/dependencies';
+import { setupGracefulShutdown, type GracefulShutdownOptions } from './utils/graceful-shutdown';
 
-export async function createApp(): Promise<FastifyInstance> {
+// Import monitoring middleware
+import requestLoggingMiddleware from './middleware/request-logging.middleware';
+import metricsMiddleware from './middleware/metrics.middleware';
+import enhancedHealthMiddleware from './middleware/enhanced-health.middleware';
+
+/**
+ * Default dependency factory - creates production dependencies
+ */
+const createDefaultDependencies = (): AppDependencies => {
+  const retellClient = new RetellApiClient();
+  const agentRepository = createRetellAgentRepository(retellClient);
+  
+  return {
+    retellClient,
+    agentRepository,
+  };
+};
+
+/**
+ * Application creation options
+ */
+export interface CreateAppOptions {
+  /** Custom dependency factory for testing/configuration */
+  dependencyFactory?: DependencyFactory;
+  /** Custom Fastify options */
+  fastifyOptions?: Record<string, any>;
+  /** Enable/disable monitoring features */
+  monitoring?: {
+    requestLogging?: boolean;
+    metrics?: boolean;
+    rateLimit?: boolean;
+    enhancedHealth?: boolean;
+  };
+}
+
+/**
+ * Creates and configures the Fastify application
+ */
+export async function createApp(options: CreateAppOptions = {}): Promise<FastifyInstance> {
+  const { 
+    dependencyFactory = createDefaultDependencies,
+    fastifyOptions = {},
+    monitoring = {
+      requestLogging: true,
+      metrics: true,
+      rateLimit: true,
+      enhancedHealth: true,
+    }
+  } = options;
+
+  // Create Fastify instance with configurable options
   const fastify = Fastify({
     logger: {
       level: config.LOG_LEVEL,
@@ -26,99 +89,185 @@ export async function createApp(): Promise<FastifyInstance> {
         },
       }),
     },
-    disableRequestLogging: false,
+    disableRequestLogging: monitoring.requestLogging, // We handle this with our custom middleware
     requestIdHeader: 'x-request-id',
     requestIdLogLabel: 'reqId',
+    ...fastifyOptions,
   });
 
-  // Register CORS
-  await fastify.register(fastifyCors, {
-    origin: isDevelopment() ? true : false, // Allow all origins in dev, restrict in prod
-    credentials: true,
-  });
-
-  // Register Swagger for API documentation
-  await fastify.register(fastifySwagger, {
-    openapi: {
-      openapi: '3.0.0',
-      info: {
-        title: 'Retell AI API',
-        description: 'REST API for Retell AI agent management',
-        version: '1.0.0',
-        contact: {
-          name: 'API Support',
-        },
-      },
-      servers: [
-        {
-          url: `http://${config.HOST}:${config.PORT}`,
-          description: 'Development server',
-        },
-      ],
-      tags: [
-        { name: 'Agents', description: 'Agent management endpoints' },
-        { name: 'Health', description: 'Health check endpoints' },
-      ],
-    },
-  });
-
-  // Register Swagger UI
-  if (isDevelopment()) {
-    await fastify.register(fastifySwaggerUI, {
-      routePrefix: '/docs',
-      uiConfig: {
-        docExpansion: 'list',
-        deepLinking: false,
-      },
-    });
-  }
-
-  // Register error handler
+  // Register plugins in proper order
+  await registerMonitoringPlugins(fastify, monitoring);
+  await registerSecurityPlugins(fastify, monitoring.rateLimit);
+  await registerDocumentationPlugins(fastify);
   await registerErrorHandler(fastify);
-
-  // Initialize dependencies
-  const retellClient = new RetellApiClient();
-  const agentRepository = createRetellAgentRepository(retellClient);
   
-  // Create functional handlers
-  const agentHandlers = createAgentHandlers(agentRepository);
-  const healthHandlers = createHealthHandlers();
-
-  // Register routes
-  await agentRoutes(fastify, agentHandlers);
-  await healthRoutes(fastify, healthHandlers);
-
-  // Root route
-  fastify.get('/', async (request, reply) => {
-    return {
-      message: 'Retell AI API is running',
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      docs: isDevelopment() ? '/docs' : undefined,
-    };
-  });
+  // Initialize dependencies
+  const dependencies = await dependencyFactory();
+  
+  // Register application routes
+  await registerApplicationRoutes(fastify, dependencies);
+  await registerRootRoute(fastify);
 
   return fastify;
 }
 
-export async function startServer(): Promise<FastifyInstance> {
-  const app = await createApp();
+/**
+ * Register monitoring and performance plugins
+ */
+async function registerMonitoringPlugins(
+  fastify: FastifyInstance, 
+  monitoring: CreateAppOptions['monitoring'] = {}
+): Promise<void> {
+  // Request logging middleware (must be first for metrics)
+  if (monitoring.requestLogging !== false) {
+    await fastify.register(requestLoggingMiddleware);
+  }
+
+  // Metrics collection middleware
+  if (monitoring.metrics !== false) {
+    await fastify.register(metricsMiddleware);
+  }
+
+  // Enhanced health checks
+  if (monitoring.enhancedHealth !== false) {
+    await fastify.register(enhancedHealthMiddleware);
+  }
+}
+
+/**
+ * Register security-related plugins
+ */
+async function registerSecurityPlugins(fastify: FastifyInstance, rateLimit = true): Promise<void> {
+  // Rate limiting (before other security measures)
+  if (rateLimit && !isDevelopment()) { // Skip rate limiting in development
+    await fastify.register(fastifyRateLimit, getRateLimitConfig());
+  }
+
+  // Security headers (Helmet)
+  await fastify.register(fastifyHelmet, getHelmetConfig());
+  
+  // CORS
+  await fastify.register(fastifyCors, getCorsConfig());
+}
+
+/**
+ * Register API documentation plugins
+ */
+async function registerDocumentationPlugins(fastify: FastifyInstance): Promise<void> {
+  // Swagger for API documentation
+  await fastify.register(fastifySwagger, getSwaggerConfig());
+  
+  // Swagger UI (development only)
+  if (isDevelopment()) {
+    await fastify.register(fastifySwaggerUI, getSwaggerUIConfig());
+  }
+}
+
+/**
+ * Register application routes
+ */
+async function registerApplicationRoutes(
+  fastify: FastifyInstance, 
+  dependencies: AppDependencies
+): Promise<void> {
+  // Create handlers with injected dependencies
+  const agentHandlers = createAgentHandlers(dependencies.agentRepository);
+  const healthHandlers = createHealthHandlers();
+
+  // Register route groups
+  await agentRoutes(fastify, agentHandlers);
+  await healthRoutes(fastify, healthHandlers);
+}
+
+/**
+ * Register the root route
+ */
+async function registerRootRoute(fastify: FastifyInstance): Promise<void> {
+  fastify.get('/', async (request, reply) => {
+    return {
+      message: ROOT_RESPONSE.MESSAGE,
+      version: ROOT_RESPONSE.VERSION,
+      timestamp: new Date().toISOString(),
+      docs: isDevelopment() ? '/docs' : undefined,
+      server: getServerUrl(),
+      monitoring: {
+        metrics: '/metrics',
+        health: '/health',
+        liveness: '/health/live',
+        readiness: '/health/ready',
+      },
+    };
+  });
+}
+
+/**
+ * Server startup options
+ */
+export interface StartServerOptions extends CreateAppOptions {
+  /** Graceful shutdown configuration */
+  gracefulShutdown?: GracefulShutdownOptions;
+  /** Custom port (overrides config) */
+  port?: number;
+  /** Custom host (overrides config) */
+  host?: string;
+}
+
+/**
+ * Starts the server with graceful shutdown handling
+ */
+export async function startServer(options: StartServerOptions = {}): Promise<FastifyInstance> {
+  const {
+    gracefulShutdown = {},
+    port = config.PORT,
+    host = config.HOST,
+    ...createAppOptions
+  } = options;
+
+  const app = await createApp(createAppOptions);
+
+  // Setup graceful shutdown with custom cleanup
+  setupGracefulShutdown(app, {
+    timeout: 15000, // 15 seconds for API shutdowns
+    onShutdown: async () => {
+      app.log.info('Running custom cleanup...');
+      // Add any custom cleanup logic here
+      // e.g., close database connections, cancel pending operations, etc.
+      
+      // Close external clients if available
+      if ((app as any).retellClient && typeof (app as any).retellClient.close === 'function') {
+        await (app as any).retellClient.close();
+      }
+    },
+    ...gracefulShutdown,
+  });
 
   try {
     await app.listen({
-      port: config.PORT,
-      host: config.HOST,
+      port,
+      host,
     });
 
-    app.log.info(`Server is running on http://${config.HOST}:${config.PORT}`);
+    app.log.info(`🚀 Server is running on ${getServerUrl()}`);
     
     if (isDevelopment()) {
-      app.log.info(`API documentation available at http://${config.HOST}:${config.PORT}/docs`);
+      app.log.info(`📚 API documentation available at ${getServerUrl()}/docs`);
     }
+    
+    // Log monitoring endpoints
+    app.log.info(`📊 Metrics available at ${getServerUrl()}/metrics`);
+    app.log.info(`❤️  Health check available at ${getServerUrl()}/health`);
 
     return app;
   } catch (error) {
     app.log.error(error, 'Failed to start server');
-    process.exit(1);
+    throw new Error(`Failed to start server: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * For backward compatibility - creates app with default dependencies
+ * @deprecated Use createApp() instead for better testability
+ */
+export async function createAppWithDefaults(): Promise<FastifyInstance> {
+  return createApp();
 }
