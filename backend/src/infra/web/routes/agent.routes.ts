@@ -22,4 +22,9 @@ export async function agentRoutes(
   fastify.get(`${prefix}/:id/prompt`, {
     schema: agentSchemas.getAgentPrompt,
   }, agentHandlers.getAgentPrompt);
+
+  // GET /api/v1/agents/:id/versions
+  fastify.get(`${prefix}/:id/versions`, {
+    schema: agentSchemas.getAgentVersions,
+  }, agentHandlers.getAgentVersions);
 }

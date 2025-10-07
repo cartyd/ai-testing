@@ -5,7 +5,8 @@ import type {
   AgentResponseOutput, 
   ListAgentsResponseOutput,
   AgentPromptResponseOutput,
-  LLMResponseOutput
+  LLMResponseOutput,
+  ListAgentVersionsResponseOutput
 } from '../../app/validators/agent-schema';
 
 export class RetellApiClient {
@@ -105,6 +106,7 @@ export class RetellApiClient {
         agent_id: id,
         system_prompt: llm.general_prompt || '',
         prompt_version: llm.version,
+        version_title: agent.version_title,
         last_modification_time: llm.last_modification_timestamp,
       };
     } catch (error) {
@@ -113,6 +115,22 @@ export class RetellApiClient {
       }
       throw new ExternalServiceError(
         `Failed to get agent prompt for ${id} from Retell AI`,
+        'retell-ai',
+        { originalError: error, agentId: id }
+      );
+    }
+  }
+
+  async getAgentVersions(id: string): Promise<ListAgentVersionsResponseOutput> {
+    try {
+      const response = await this.httpClient.get<ListAgentVersionsResponseOutput>(`/get-agent-versions/${id}`);
+      return response.data;
+    } catch (error) {
+      if (error instanceof ExternalServiceError) {
+        throw error;
+      }
+      throw new ExternalServiceError(
+        `Failed to get agent versions for ${id} from Retell AI`,
         'retell-ai',
         { originalError: error, agentId: id }
       );

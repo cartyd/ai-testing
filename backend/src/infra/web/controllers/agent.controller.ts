@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { AgentRepository } from '../../../app/ports';
-import { listAgents, getAgent, getAgentPrompt } from '../../../core/use-cases';
+import { listAgents, getAgent, getAgentPrompt, getAgentVersions } from '../../../core/use-cases';
 import { GetAgentParamsSchema } from '../../../app/validators/agent-schema';
 import { NotFoundError } from '../../../common/errors/app-errors';
 import type { ApiResponse } from '../../../common/types';
@@ -114,6 +114,7 @@ export interface AgentHandlers {
   listAgents: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   getAgent: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   getAgentPrompt: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  getAgentVersions: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
 /**
@@ -146,6 +147,15 @@ export function createAgentHandlers(agentRepository: AgentRepository): AgentHand
         ensureResourceExists(agentPrompt, AGENT_MESSAGES.ERROR.AGENT_PROMPT_NOT_FOUND(id));
         sendSuccessResponse(reply, agentPrompt, AGENT_MESSAGES.SUCCESS.AGENT_PROMPT_RETRIEVED);
       }, 'Failed to retrieve agent prompt');
+    },
+
+    async getAgentVersions(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+      await safeAsyncHandler(reply, async () => {
+        const { id } = parseAgentParams(request);
+        const agentVersions = await getAgentVersions(agentRepository, id);
+        
+        sendSuccessResponse(reply, agentVersions, AGENT_MESSAGES.SUCCESS.AGENT_VERSIONS_RETRIEVED);
+      }, 'Failed to retrieve agent versions');
     },
   };
 }

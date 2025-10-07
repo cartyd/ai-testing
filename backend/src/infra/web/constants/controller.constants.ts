@@ -17,10 +17,12 @@ export const AGENT_MESSAGES = {
     AGENTS_RETRIEVED: 'Agents retrieved successfully',
     AGENT_RETRIEVED: 'Agent retrieved successfully',
     AGENT_PROMPT_RETRIEVED: 'Agent prompt retrieved successfully',
+    AGENT_VERSIONS_RETRIEVED: 'Agent versions retrieved successfully',
   },
   ERROR: {
     AGENT_NOT_FOUND: (id: string) => `Agent with ID ${id} not found`,
     AGENT_PROMPT_NOT_FOUND: (id: string) => `Agent prompt for ID ${id} not found`,
+    AGENT_VERSIONS_NOT_FOUND: (id: string) => `Agent versions for ID ${id} not found`,
     INVALID_AGENT_ID: (id: string) => `Invalid agent ID: ${id}`,
   },
 } as const;
